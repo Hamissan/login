@@ -4,15 +4,17 @@ const express = require("express");
 const bodyParser= require("body-parser");
 const ejs = require("ejs");
 const mongoose= require("mongoose");
-const { error } = require("console");
-const encrypt = require("mongoose-encryption");
+// const md5 = require("md5");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
+
 // const bcrypt = require('bcrypt');
 
 const app = express();
 
+// console.log(md5(12345));
 
-
-console.log(process.env.ENCRYPTION_KEY);
+// console.log(process.env.ENCRYPTION_KEY);
 
 app.use(express.static("public"));
 app.set('view engine', 'ejs');
@@ -40,9 +42,12 @@ mongoose.connect(mongoURL,mongoOptions)
  email: String,
  password: String   
  });
+// Create a .env file in the root directory
+// Save your secret keys there
+// >>process.env.ENCRYPTION_KEY
 
- userSchema.plugin(encrypt, { secret: process.env.ENCRYPTION_KEY, encryptedFields: ['password']});
-
+//  userSchema.plugin(encrypt, { secret: process.env.ENCRYPTION_KEY, encryptedFields: ['password']});
+// 
 const User = new mongoose.model("User", userSchema);
 
 
@@ -60,23 +65,22 @@ app.get("/register", function(req,res){
 
 app.post("/register", function(req, res){
 
-    // create new user
-
-   const newUser = new User({
+    bcrypt.hash(req.body.password, saltRounds, function(err,hash){
+// create new user
+const newUser = new User({
     email: req.body.username,
-    password: req.body.password
-   });
-
-   newUser.save()
+    password: hash
+});
+    newUser.save()
     .then(() => {
 res.render("secrets");
     })
     .catch((error) =>{
         console.error("Error during registration:", error);
         res.render("register", {error: "Registration Failed. Please try again"});
-    });
-        
+    });      
 });
+   });
 
 // The below code snippet is from Udemy by Angela Yu (Full Stack Web Development)
 
@@ -107,22 +111,33 @@ res.render("secrets");
 
 
 app.post("/login", function(req, res){
+
     const username = req.body.username;
     const password = req.body.password;
 
     User.findOne({ email: username })
         .then((foundUser) => {
-            if (foundUser && foundUser.password === password) {
-                res.render("secrets");
+            if (foundUser) {
+                bcrypt.compare(password, foundUser.password, function(err, result) {
+                    if(result === true){
+                        res.render("secrets");
+                    } else {
+                        // Handle case where the provided password is incorrect
+                        res.render("login", {error: "Invalid username or password"});
+                    }
+                });
             } else {
-                // Handle case where user is not found or password is incorrect
+                // Handle case where the user with the provided username is not found
                 res.render("login", {error: "Invalid username or password"});
             }
         })
         .catch((err) => {
+            // Handle potential errors during the database query
             console.log(err);
+            res.render("error", { error: "An unexpected error occurred" });
         });
 });
+
 
 app.listen(3000, function(){
     console.log("Server is running on port 3000.");

@@ -51,7 +51,9 @@ mongoose.connect(mongoURL,mongoOptions)
  const userSchema = new mongoose.Schema({
  email: String,
  password: String,
- googleId:String   
+ googleId:String,
+ secret: String
+
  });
  userSchema.plugin(passportLocalMongoose);
  userSchema.plugin(findOrCreate);
@@ -107,14 +109,22 @@ app.get("/login", function(req,res){
 app.get("/register", function(req,res){
     res.render("register");
 });
-app.get("/secrets", function(req,res){
-    if(req.isAuthenticated()){
-        res.render("secrets");
-    }else{
-        res.redirect("/login");
-    }
-    
+app.get("/secrets", function(req, res){
+    User.find({"secret": {$ne: null}})
+        .then(foundUsers => {
+            if (foundUsers && foundUsers.length > 0) {
+                res.render("secrets", { usersWithSecrets: foundUsers });
+            } else {
+                res.render("secrets", { usersWithSecrets: [] });
+            }
+        })
+        .catch(err => {
+            console.log(err);
+            // Handle the error, you might want to send an error response or redirect
+            res.status(500).send("Internal Server Error");
+        });
 });
+
 // end user session
 app.get("/logout", function(req,res){
 req.logout(function(err){
@@ -123,6 +133,35 @@ req.logout(function(err){
     }
 });
 res.redirect("/");
+});
+
+app.get("/submit", function(req,res){
+    if(req.isAuthenticated()){
+        res.render("submit");
+    }else{
+        res.redirect("/login");
+    }
+});
+
+app.post("/submit", function(req,res){
+const submittedSecret = req.body.secret;
+// find the current user in our database and save the secert into their file
+
+User.findById(req.user.id)
+    .then(foundUser => {
+        if (foundUser) {
+            foundUser.secret = submittedSecret;
+            return foundUser.save();
+        }
+    })
+    .then(() => {
+        res.redirect("/secrets");
+    })
+    .catch(error => {
+        console.log(error);
+    });
+
+
 });
 
 app.post("/register", function(req, res){

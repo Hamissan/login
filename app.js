@@ -19,7 +19,7 @@ app.use(bodyParser.urlencoded({
 }));
 
 app.use(session({
-    secret: "My name is Hamisi.",
+    secret: process.env.SECRET_KEY,
     resave: false,
     saveUninitialized:false
 }));
